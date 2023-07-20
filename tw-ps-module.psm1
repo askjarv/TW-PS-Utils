@@ -44,10 +44,6 @@ CHANGELOG:
 # DEFEND RECIPIENT AGAINST CLAIMS RELATED TO INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS.
 # ----------------------------------------------------
 # General Setup
-[CmdletBinding()]
-$DebugPreference = "Continue"
-$ErrorActionPreference = "Continue"
-$VerbosePreference = "Continue"
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
 # -------------------- API Access -------------------------
 function Set-IgnoreSSL{
