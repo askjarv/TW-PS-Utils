@@ -44,6 +44,10 @@ CHANGELOG:
 # DEFEND RECIPIENT AGAINST CLAIMS RELATED TO INFRINGEMENT OF INTELLECTUAL PROPERTY RIGHTS.
 # ----------------------------------------------------
 # General Setup
+[CmdletBinding()]
+$DebugPreference = "Continue"
+$ErrorActionPreference = "Continue"
+$VerbosePreference = "Continue"
 #-----------------------------------------------------------[Functions]------------------------------------------------------------
 # -------------------- API Access -------------------------
 function Set-IgnoreSSL{
@@ -664,7 +668,7 @@ function Get-TETaskGroup{
         return $taskg
     }
 }
-#TODO: Update this to reflect current commandlet function designs
+# TODO: Updated New-TETaskGroupLink
 function New-TETaskGroupLink{
     param($ItemToLink,$TargetTaskPath)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -683,7 +687,7 @@ function New-TETaskGroupLink{
     $taskmove = Invoke-RestMethod -Uri ($Uri+'taskgroups/'+$destination+'/links/'+$source) -Method POST -ContentType 'Application/json' -Headers $headers -WebSession $ActiveSessionVariable
     return $taskmove
 }
-#TODO: Update this to reflect current commandlet function designs
+# TODO: Update Remove-TETaskGroupLink
 function Remove-TETaskGroupLink{
     param($ItemToUnLink,$GroupToUnlinkFrom)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -1661,7 +1665,7 @@ function Get-TEPolicyTestResult{
             {Write-Error "Failed to get policy test results"}
     }
 }
-#TODO: Update this to reflect current commandlet function designs
+# TODO:
 function Get-TEPolicyTestResultByOIDandTestStateandHours{
     param($PolicyTestOID,$NodeOID,$TestState,$Hours)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -1676,7 +1680,7 @@ function Get-TEPolicyTestResultByOIDandTestStateandHours{
     else{Write-host "State must be either, FAILED, PASSED or UNKNOWN"; Break}
     return $policytestresult
 }
-#TODO: Update this to reflect current commandlet function designs
+#TODO:
 function Get-TEPolicyResultByNodeGroupSyslogMessageFormat{
     param($PolicyName,$NodeGroupName)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -1717,7 +1721,7 @@ function Get-TEPolicyResultByNodeGroupSyslogMessageFormat{
     }
     return $SyslogResult
 }
-#TODO: Update this to reflect current commandlet function designs
+#TODO:
 function Get-TEPolicyResultByNodeGroupSyslogMessageFormatFiltered{
     param($PolicyName,$NodeGroupName,$TestState)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -1758,7 +1762,7 @@ function Get-TEPolicyResultByNodeGroupSyslogMessageFormatFiltered{
     }
     return $SyslogResult
 }
-#TODO: Update this to reflect current commandlet function designs
+#TODO:
 function Get-TEPolicyResultByNodeGroupSyslogMessageFormatFilteredByStateAndHours{
     param($PolicyName,$NodeGroupName,$TestState,$Hours)
     If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
@@ -1872,7 +1876,6 @@ function Get-TEWaivers{
         return $waivers
     }
 }
-#TODO: Update this to reflect current commandlet function designs
 function New-TEWaiver{
     param([parameter(mandatory)]$waiverDescription,[parameter(mandatory)]$waiverName,[parameter(mandatory)]$waiverGrantedBy,[parameter(mandatory)]$waiverResponsible,[parameter(mandatory)]$waiveredNodeName,[parameter(mandatory)]$waiveredPolicyTest,[parameter(mandatory)]$waiveredPolicy,$waiverExpiration,$StartTime)
     <#
@@ -1944,7 +1947,7 @@ function New-TEWaiver{
         return $waiver
         }
 }
-#TODO: Update this to reflect current commandlet function designs
+#TODO:
  function Update-TEWaiver{
     param($waiverID,$waiverDescription,$waiverName,$waiverGrantedBy,$waiverResponsible,$waiveredNodeName,$waiveredPolicyTest,$waiveredPolicy,$waiverExpiration,[boolean]$CreateIfNotPresent)
     <#
@@ -2008,3 +2011,1225 @@ function New-TEWaiver{
                 }
         }
 }
+#TODO:
+# -------------------- SOAP API ---------------------------
+# -------------------- General ----------------------------
+#TODO:
+function Get-TESOAPRootGroupsXML{
+    Write-debug "This returns an XML object!"
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+    <m:listArgs xmlns:m="https://localhost/twservice/wsdl/1">
+        <m:OID></m:OID>
+    </m:listArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "list"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    Remove-Item $temppath
+    return [xml]$tesoap.Content
+}
+
+function Get-TESOAPRootGroups{
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:listArgs xmlns:m="http://tripwire.com/twservice/wsdl/1" />
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "list"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.listresponse.childnodes | Select-Object name,oid
+}
+
+function Set-TESOAPOIDName{
+    param($oid,$newname)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <setNameArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID>$oid</OID>
+            <NewName xmlns="">$newname</NewName>
+            </setNameArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "setName"}
+    # Send soap packet
+    $result = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    return $result
+}
+
+function Move-TESOAPOID{
+    param($oidToMove,$SourceOID,$DestinationOID)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <moveArgs destGroupOid="$DestinationOID" srcGroupOid="$SourceOID" xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oidToMove</OID>
+            </moveArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "move"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    Remove-Item $temppath
+    return $result
+}
+
+function Connect-TESOAPOID{
+    param($oidtolink,$DestinationOID)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <linkArgs destGroupOid="$DestinationOID" xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oidtolink</OID>
+            </linkArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "link"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = [xml]$tesoap.Content
+    $result.Envelope.Body.InnerText
+    Remove-Item $temppath
+}
+
+
+function Disconnect-TESOAPOID{
+    param($oidtounlink,$GroupOID)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <unlinkArgs groupOid="$GroupOID" xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oidtounlink</OID>
+            </unlinkArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "unlink"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = [xml]$tesoap.Content
+    $result.Envelope.Body.InnerText
+    Remove-Item $temppath
+}
+
+# -------------------- SOAP API ---------------------------
+# --------------------- Rules -----------------------------
+
+function Get-TESOAPRuleGroupOID{
+    param($ruleGroupName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="ruleGroup" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.ruleGroup.name" operator="equals">
+                <m:String>$ruleGroupName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    Remove-Item $temppath
+    $result = $tesoap.Content
+    $result = [xml]$result
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+function Get-TESOAPRuleOID{
+    param($ruleName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="rule" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.rule.name" operator="equals">
+                <m:String>$ruleName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    Remove-Item $temppath
+    $result = $tesoap.Content
+    $result = [xml]$result
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+
+function Get-TESOAPRuleGroupChildren{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.RuleGroup.OidList | Where-Object {$_.name -eq "Children"} | select-object OID
+    $oids = $oids[0].oid
+    Remove-Item $temppath
+    $oids | ForEach-Object{write-host $_}
+}
+
+function Get-TESOAPRuleGroupParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.RuleGroup.OidList | Where-Object {$_.name -eq "Parents"} | select-object OID
+    $oids = $oids[0].oid
+    Remove-Item $temppath
+    $oids | ForEach-Object{write-host $_}
+}
+
+function Get-TESOAPRuleParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.Rule.OidList | Where-Object {$_.name -eq "Parents"} | select-object OID
+    $oids = $oids[0].oid
+    Remove-Item $temppath
+    $oids | ForEach-Object{write-host $_}
+}
+
+function Import-TESOAPRuleXML{
+    param($rulexmlfile)
+    $temppath = "soappacket.xml"
+    $sourceItem = Get-Item $rulexmlfile
+    $sourceBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($sourceItem.FullName))
+    $sourceMime = [System.Web.MimeMapping]::GetMimeMapping($sourceItem.FullName)
+    $importxml = @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <soapenv:Body>
+        <import xmlns="http://tripwire.com/twservice/wsdl/1">
+            <ns1:importArgs groupOid="-1y2p0ij32e8b7:-1y2p0ij32e869" handleConflicts="useCurrentValues" returnConflictDetails="false" type="rule" xmlns:ns1="http://tripwire.com/twservice/wsdl/1"/>
+            <importContent href="F3C36D980EA6DBC2458E77C06D0D2CF1"/>
+        </import>
+    </soapenv:Body>
+</soapenv:Envelope>
+"@
+    $importxml | Out-File $temppath -force -Encoding utf8
+    $importXML = Get-Item $temppath
+    $sourceBase64header = [Convert]::ToBase64String([IO.File]::ReadAllBytes($importXML.FullName))
+    $sourceMime2 = [System.Web.MimeMapping]::GetMimeMapping($importXML.FullName)
+
+
+$uploadBody = @"
+--boundary
+Content-Type: $sourceMime2
+Content-Transfer-Encoding: base64
+Content-Id: <C268B4950BE43EC10EF16AF8EA31C556>
+
+$sourceBase64header
+
+--boundary
+Content-Type: $sourceMime
+Content-Transfer-Encoding: base64
+Content-Id: <F3C36D980EA6DBC2458E77C06D0D2CF1>
+
+$sourceBase64
+
+--boundary--
+"@
+
+$headers = @{
+    "Content-Type" = 'multipart/related; boundary=boundary'
+    "start"="<C268B4950BE43EC10EF16AF8EA31C556>"
+    "SOAPAction" = "import"
+    "Content-Length" = $uploadBody.Length
+}
+
+$tesoap = Invoke-RestMethod -Method Post -Uri "https://$teserver/twservice/soap" -body $uploadBody -Headers $headers -WebSession $sesvar
+    try{
+        $successes = $tesoap.Envelope.Body.importResponse.importResponse.ChildNodes[0].countSuccess
+        Write-host "Import successful ($successes)"
+    }
+    catch{Write-Host "Error"
+    Write-host $tesoap.Envelope.body.Fault}
+    return $result
+}
+
+function Get-TESOAPReportOID{
+    param($reportName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="report" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.report.name" operator="equals">
+                <m:String>$reportName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+function Get-TESOAPReportGroupOID{
+    param($reportGroupName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="reportGroup" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.reportGroup.name" operator="equals">
+                <m:String>$reportGroupName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+function Get-TESOAPReportParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.ReportGroup.OidList | Where-Object {$_.name -eq "parents"} | select-object OID
+    $oids = $oids[0].oid
+    Remove-Item $temppath
+    $oids | ForEach-Object{write-host $_}
+}
+
+function Get-TESOAPReportGroupChildren{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.ReportGroup.OidList | Where-Object {$_.name -eq "children"} | select-object OID
+    $oids = $oids[0].oid
+    Remove-Item $temppath
+    $oids | ForEach-Object{write-host $_}
+}
+
+function Import-TESOAPReportXML{
+    param($reportfile)
+    $temppath = "soappacket.xml"
+    $sourceItem = Get-Item $reportfile
+    $sourceBase64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($sourceItem.FullName))
+    $sourceMime = [System.Web.MimeMapping]::GetMimeMapping($sourceItem.FullName)
+    $importxml = @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <soapenv:Body>
+        <import xmlns="http://tripwire.com/twservice/wsdl/1">
+            <ns1:importArgs groupOid="-1y2p0ij32e86p:-1y2p0ij32e85t" handleConflicts="useCurrentValues" returnConflictDetails="false" type="report" xmlns:ns1="http://tripwire.com/twservice/wsdl/1"/>
+            <importContent href="F3C36D980EA6DBC2458E77C06D0D2CF1"/>
+        </import>
+    </soapenv:Body>
+</soapenv:Envelope>
+"@
+    $importxml | Out-File $temppath -force -Encoding utf8
+    $importXML = Get-Item $temppath
+    $sourceBase64header = [Convert]::ToBase64String([IO.File]::ReadAllBytes($importXML.FullName))
+    $sourceMime2 = [System.Web.MimeMapping]::GetMimeMapping($importXML.FullName)
+
+
+    $uploadBody = @"
+--boundary
+Content-Type: $sourceMime2
+Content-Transfer-Encoding: base64
+Content-Id: <C268B4950BE43EC10EF16AF8EA31C556>
+
+$sourceBase64header
+
+--boundary
+Content-Type: $sourceMime
+Content-Transfer-Encoding: base64
+Content-Id: <F3C36D980EA6DBC2458E77C06D0D2CF1>
+
+$sourceBase64
+
+--boundary--
+"@
+
+$headers = @{
+    "Content-Type" = 'multipart/related; boundary=boundary'
+    "start"="<C268B4950BE43EC10EF16AF8EA31C556>"
+    "SOAPAction" = "import"
+    "Content-Length" = $uploadBody.Length
+}
+
+$tesoap = Invoke-RestMethod -Method Post -Uri "https://$teserver/twservice/soap" -body $uploadBody -Headers $headers -WebSession $sesvar
+    try{
+        $successes = $tesoap.Envelope.Body.importResponse.importResponse.ChildNodes[0].countSuccess
+        Write-host "Import successful ($successes)"
+    }
+    catch{Write-Host "Error"
+    Write-host $tesoap.Envelope.body.Fault}
+    return $result
+}
+
+# -------------------- SOAP API ---------------------------
+# ---------------------- Nodes ----------------------------
+
+function Get-TESOAPnodeOID{
+    param($nodeName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="node" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.node.name" operator="equals">
+                <m:String>$nodeName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+function Get-TESOAPnodeGroupOID{
+    param($nodeGroupName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="nodeGroup" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.nodeGroup.name" operator="equals">
+                <m:String>$nodeGroupName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+function Get-TE-SOAP-NodeGroupParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.NodeGroup.OidList | Where-Object {$_.name -eq "parents"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+function Get-TESOAPNodeParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.Node.OidList | Where-Object {$_.name -eq "parents"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+function Get-TESOAPNodeGroupChildren{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.NodeGroup.OidList | Where-Object {$_.name -eq "children"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+
+# -------------------- SOAP API ---------------------------
+# ---------------------- Tasks ----------------------------
+
+function Get-TESOAPTaskOID{
+    param($TaskName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="task" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.task.name" operator="equals">
+                <m:String>$TaskName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+function Get-TESOAPTaskGroupOID{
+    param($taskGroupName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="taskGroup" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.taskGroup.name" operator="equals">
+                <m:String>$taskGroupName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+function Get-TESOAPTaskGroupParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.TaskGroup.OidList | Where-Object {$_.name -eq "parents"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+function Get-TESOAPTaskGroupChildren{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.TaskGroup.OidList | Where-Object {$_.name -eq "children"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+# -------------------- SOAP API ---------------------------
+# -------------------- Policies ---------------------------
+function Get-TESOAPPolicyRootGroupOID{
+    $soappacket =  @"
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+    <listArgs extensions="policies,tasks,reports" xmlns="http://tripwire.com/twservice/wsdl/1"/>
+</soapenv:Body>
+</soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "list"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    $result = $result.Envelope.Body.listResponse.PolicyTestGroup | Where-Object {$_.name -eq "Root Policy Test Group"}
+    return $result.oid
+}
+function Get-TESOAPPolicyTestOID{
+    param($PolicyTestName)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="policyTest" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.policyTest.name" operator="equals">
+                <m:String>$PolicyTestName</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+function Get-TESOAPPolicyGroupOID{
+    param($policyTestGroup)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="https://localhost/twservice/wsdl/1">
+    <soapenv:Header/>
+    <soapenv:Body>
+        <m:searchArgs searchType="policyTestGroup" xmlns:m="https://localhost/twservice/wsdl/1">
+            <m:MultiStringMatch name="search.policyTestGroup.name" operator="equals">
+                <m:String>$policyTestGroup</m:String>
+            </m:MultiStringMatch>
+        </m:searchArgs>
+    </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "search"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    $result = $tesoap.Content
+    $result = [xml]$result
+    Remove-Item $temppath
+    return $result.Envelope.Body.searchResponse.OID
+}
+
+function Get-TESOAPPolicyGroupParent{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.PolicyTestGroup.OidList | Where-Object {$_.name -eq "parents"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+
+function Get-TESOAPPolicyGroupChildren{
+    param($oid)
+    $soappacket =  @"
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <soapenv:Body>
+            <getPropertiesArgs xmlns="http://tripwire.com/twservice/wsdl/1">
+                <OID xsi:type="xsd:string">$oid</OID>
+            </getPropertiesArgs>
+        </soapenv:Body>
+    </soapenv:Envelope>
+"@
+    $temppath = "soappacket.txt"
+    $soappacket | Out-File $temppath -force -Encoding utf8
+    # SOAP header - what action do we want to use
+    $header = @{"SOAPAction" = "getProperties"}
+    # Send soap packet
+    $tesoap = Invoke-WebRequest -Method Post -Uri "https://$teserver/twservice/soap" -InFile $temppath -ContentType "text/xml" -Headers $header -WebSession $sesvar
+    # Our result includes parents and children, and is XML, so we want to convert these to just get the parent OID's out
+    $result = [xml]$tesoap.Content
+    $oids = $result.Envelope.Body.getPropertiesResponse.PolicyTestGroup.OidList | Where-Object {$_.name -eq "children"} | select-object OID
+    $oids = $oids[0].oid
+    $oids | ForEach-Object{write-host $_}
+    Remove-Item $temppath
+}
+# ----------------- Asset View API ------------------------
+function Get-TEAVNodeNames{
+    $assets = Invoke-RestMethod -uri ("$TEAVURI"+"assets") -Credential $TECreds
+    $assets = $assets.assets.'computing-device'.hostname
+    $assets = $assets | ForEach-Object {$_.split(".")}
+    $assets = $assets | Select-Object -Unique
+    return $assets
+    }
+function Get-TEAVTagsets{
+    param($asxml,$aslist)
+    $tagsets= Invoke-RestMethod -uri ($TEAVURI+'tagsets') -Credential $TECreds
+    if($aslist -eq $true){$tagsets.tagSets.tagset}else{return $tagsets}
+}
+function Get-TEAVAPITagsetID{
+    param($tagsetname)
+    $tagsets = Get-TEAV-Tagsets -aslist $true
+    $tagset = $tagsets | Where-Object {$_.name -eq $tagsetname}
+    $myerror = "Tagset id = " + $tagset.id
+    Write-debug $myerror
+    return $tagset.id
+}
+function Get-TEAVAPITags{
+    param($asxml,$aslist)
+    $tags= Invoke-RestMethod -uri ($TEAVURI+'tags') -Credential $TECreds
+    if($aslist -eq $true){$tags.tags.tag}else{return $tags}
+}
+function Get-TEAVTagID{
+    param($tagname)
+    $tags = Get-TE-AVAPI-Tags -aslist $true
+    $tag = $tags | Where-Object {$_.name -eq $tagname}
+    $myerror = "Tagset id = " + $tag.id
+    Write-debug $myerror
+    return $tag.id
+}
+function Get-TEAVNodeID{
+    param($nodename)
+    Write-Debug "Connecting to $TEAVURI"
+    $assets = Invoke-RestMethod -uri ($TEAVURI+'assets') -Credential $TECreds
+    $id = $assets.assets.'computing-device' | Where-Object {$_.hostname -eq $nodename} | Select-Object synthetic-id
+    $id = $id.'synthetic-id'[0].id
+    Write-debug "Asset view asset id = $id"
+    return $id
+}
+function Get-TEAVNodeTags{
+    param($nodename,$asxml,$aslist)
+    Write-Debug "Connecting to $TEAVURI"
+    $assets = Invoke-RestMethod -uri ($TEAVURI+'assets') -Credential $TECreds
+    $id = $assets.assets.'computing-device' | Where-Object {$_.hostname -eq $nodename} | Select-Object synthetic-id
+    $id = $id.'synthetic-id'[0].id
+    Write-debug "Asset view asset id = $id"
+    $tags = Invoke-RestMethod -uri ($TEAVURI+"assets/$id/tags") -Credential $TEcreds
+    if($aslist -eq $true){$tags.tags.tag}else{return $tags}
+}
+function Update-TEAVNodeTag{
+    param($nodename,$tagname)
+    $assetid =  Get-TE-AVNodeID -nodename $nodename
+    $tagid = Get-TE-AVTagID -tagname $tagname
+    # Write the tag
+    $assets = Invoke-RestMethod -uri ($TEAVURI+"assets/$assetid/tags/$tagid") -Credential $TEcreds -Method post -body $body -ContentType "application/xml"
+    return $assets 
+}
+function New-TEAVTagSet{
+    param($TagsetName)
+    If(!$ActivesessionVariable){Write-Host "Please login using Get-TE-REST-Login first";break}
+    $body = @"
+    <tagset>
+        <name>Test 2</name>
+        <type>USER</type>
+    </tagset>
+"@
+    $tagset = Invoke-RestMethod -uri ($TEAVURI+"tagsets/") -Credential $TEcreds -Method post -body $body -ContentType "application/xml"
+    return $tagset
+}
+function New-TEAVTagSetTag{
+    param($TagsetName,$tagname)
+    $tagsetid = Get-TE-AVAPI-Tagset-ID -tagsetname $TagsetName
+    $body = @"
+    <tag>
+        <name>$tagname</name>
+        <tagset-id>$tagsetid</tagset-id>
+    </tag>
+"@
+    Write-debug $body
+    $tag = Invoke-RestMethod -uri ($TEAVURI+"tags/") -Credential $TEcreds -Method post -body $body -ContentType "application/xml"
+    return $tag
+}
+function New-TEAVTagSetIDTag{
+    param($TagSetID,$tagname)
+    $body = @"
+    <tag>
+        <name>$tagname</name>
+        <tagset-id>$tagsetid</tagset-id>
+    </tag>
+"@
+    Write-debug $body
+    $tag = Invoke-RestMethod -uri ($TEAVURI+"tags/") -Credential $TEcreds -Method post -body $body -ContentType "application/xml"
+    return $tag
+}
+function Remove-TEAVTagSetTag{
+    param($tagname)
+    $tagid = Get-TEAVTagID -tagname $tagname
+    $tag = Invoke-RestMethod -uri ($TEAVURI+"tags/$tagid") -Credential $TEcreds -Method delete -body $body -ContentType "application/xml"
+    return $tag
+}
+function Remove-TEAVTagSet{
+    param($tagsetname)
+    $tagsetid = Get-TEAVTagsetID -tagsetname $tagsetname
+    $tag = Invoke-RestMethod -uri ($TEAVURI+"tagsets/$tagsetid") -Credential $TEcreds -Method delete -body $body -ContentType "application/xml"
+    return $tag
+}
+function New-TEPolicyPreflightCheckWindows{
+    param($seperator,$TagSetName, $COCRRuleName,$AppliedNodeGroup)
+    # Get Policies
+    $Policies = Get-TE-Policies
+    $validatetagset = Get-TE-AVAPI-Tagset-ID -tagsetname $tagsetname
+    if($null -eq $validatetagset )
+    {
+        Write-host "Tagset name- $tagsetname does not exist - breaking"
+        break
+    }
+    # Get List of nodes
+    $nodes = Get-TE-Nodes-in-NodeGroup -NodeGroupName $AppliedNodeGroup
+        $nodes | ForEach-Object{
+        # Get with software installed for each node
+        $currentnode = $_
+        try
+            {
+            # Retrieve content of Windows Installed Software and Updates
+            $version = Get-TE-Version-Latest -FilteredRuleName $COCRRuleName -NodeName $_.name | select-object -First 1
+            }
+            catch
+            {
+            Write-host "Could not retrieve version - maybe a permission error?"
+            break
+            }
+        if($version.count -eq 0)
+            {
+            # No software info retrieved
+            Write-host "No element version content for Installed software- maybe not baselined or not a Windows node?"
+            }
+        else
+        {
+            $versioncontent = Get-TE-Version-Content -versionid $version.id
+            # For each version, create a tag and apply it
+            $versioncontent.split("`n") | foreach-object{
+                if($_.length -le  1 -or $_ -like "HotFixID*")
+                {
+                    # Content appears blank, do nothing (we include blank lines for some reason)
+                    Write-debug "Nothing here to parse"
+                }
+                else
+                {
+                    $tagname = $_
+                    Write-host "Processing $tagname"
+                    # THis should be the field of the software name, assuming the format of "Display Name: SQL Server 2019 DMF, Install Date: 20200123, Version: 15.0.2000.5" - a regex might be better but more costly.
+                    $tagname = $_.split(":,")[1]
+                    # If a comm is in the name, replace it
+                    $tagname = $tagname.Replace(","," ")
+                    # Keep under 50 char limit
+                    try
+                    {
+                        if($tagname.length -gt 49)
+                        {
+                            $tagname =$tagname.Substring(1,50)
+                        }
+                    }
+                    catch
+                    {
+                        Write-host "Couldn`t split string, check tag $tagname"
+                        $tagname = "BadTag"
+                    }
+                    # A little bit of extra tidying here
+                    $tagname = $tagname.trim()
+                    write-debug "Checking if tag ($tagname) matches policy name"
+                    $Policies | foreach-object{
+                        write-debug "Checking policy named..."
+                        write-debug $_.name
+                        try{$PolicyAppName = $_.name.split("$seperator")[1]}catch{$PolicyAppName= "No matching app"}
+                        if($Null -eq $PolicyAppName){$policyappname = "No matching app"}
+                        write-debug $PolicyAppName
+                        write-host "Comparing"+  $PolicyAppName +" to $tagname"
+                        if($PolicyAppName -eq $tagname)
+                        {
+                            # Create the tag
+                            $tagsetid = Get-TE-AVAPI-Tagset-ID -tagsetname $tagsetname
+                            New-TE-AVAPI-TagSetID-Tag -TagsetID $tagsetID -tagname $tagname
+                            # Apply the tag to the node
+                            Update-TE-AVAPI-Node-Tag -nodename $currentnode.name -tagname $tagname
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+}
+function New-TEPolicyPreflightCheckLinux{
+    param($seperator,$TagSetName, $COCRRuleName,$AppliedNodeGroup)
+    # Get Policies
+    $Policies = Get-TE-Policies
+    $validatetagset = Get-TE-AVAPI-Tagset-ID -tagsetname $tagsetname
+    if($null -eq $validatetagset)
+    {
+        Write-host "Tagset name- $tagsetname does not exist - breaking"
+        break
+    }
+    # Get List of nodes
+    $nodes = Get-TENodesinNodeGroup -NodeGroupName $AppliedNodeGroup
+        $nodes | ForEach-Object{
+        # Get with software installed for each node
+        $currentnode = $_
+        try
+            {
+            # Retrieve content of Windows Installed Software and Updates
+            $version = Get-TEVersionLatest -RuleName $COCRRuleName -NodeName $_.name | select-object -First 1
+            }
+            catch
+            {
+            Write-host "Could not retrieve version - maybe a permission error?"
+            break
+            }
+        if($version.count -eq 0)
+            {
+            # No software info retrieved
+            Write-host "No element version content for Installed software- maybe not baselined or not a Windows node?"
+            }
+        else
+        {
+            $versioncontent = Get-TEVersionContent -id $version.id
+            # For each version, create a tag and apply it
+            $versioncontent.split("`n") | foreach-object{
+                if($_.length -le  1 -or $_ -like "HotFixID*")
+                {
+                    # Content appears blank, do nothing (we include blank lines for some reason)
+                    Write-debug "Nothing here to parse"
+                }
+                else
+                {
+                    $tagname = $_
+                    Write-host "Processing $tagname"
+                    # This should be the field of the software name, assuming the format of "abattis-cantarell-fonts,0.0.25,1.el7,noarch,(none)" - a regex might be better but more costly.
+                    $tagname = $_.split(",")[0]
+                    # Keep under 50 char limit
+                    try
+                    {
+                        if($tagname.length -gt 49)
+                        {
+                            $tagname =$tagname.Substring(1,50)
+                        }
+                    }
+                    catch
+                    {
+                        Write-host "Couldn`t split string, check tag $tagname"
+                        $tagname = "BadTag"
+                    }
+                    $tagname = $tagname.trim()
+                    write-debug "Checking if tag ($tagname) matches policy name"
+                    $Policies | foreach-object{
+                        write-debug "Checking policy named..."
+                        write-debug $_.name
+                        try{$PolicyAppName = $_.name.split("$seperator")[1]}catch{$PolicyAppName= "No matching app"}
+                        if($Null -eq $PolicyAppName){$policyappname = "No matching app"}
+                        write-debug $PolicyAppName
+                        write-host "Comparing"+  $PolicyAppName +" to $tagname"
+                        if($PolicyAppName -eq $tagname)
+                        {
+                            # Create the tag
+                            $tagsetid = Get-TE-AVAPI-Tagset-ID -tagsetname $tagsetname
+                            New-TE-AVAPI-TagSetID-Tag -TagsetID $tagsetID -tagname $tagname
+                            # Apply the tag to the node
+                            Update-TE-AVAPI-Node-Tag -nodename $currentnode.name -tagname $tagname
+                        }
+                    }
+
+                }
+            }
+        }
+    }
+}
+# ----------------- Misc Functions ------------------------
+Function Send-TCPMessage { 
+    Param ( 
+            [Parameter(Mandatory=$true, Position=0)]
+            [ValidateNotNullOrEmpty()] 
+            [string] 
+            $EndPoint
+        , 
+            [Parameter(Mandatory=$true, Position=1)]
+            [int]
+            $Port
+        , 
+            [Parameter(Mandatory=$true, Position=2)]
+            [string]
+            $Message
+    ) 
+    Process {
+        # Setup connection 
+        $IP = [System.Net.Dns]::GetHostAddresses($EndPoint) 
+        $Address = [System.Net.IPAddress]::Parse($IP) 
+        $Socket = New-Object System.Net.Sockets.TCPClient($Address,$Port) 
+    
+        # Setup stream writer 
+        $Stream = $Socket.GetStream() 
+        $Writer = New-Object System.IO.StreamWriter($Stream)
+
+        # Write message to stream
+        $Message | foreach-object {
+            $Writer.WriteLine($_)
+            $Writer.Flush()
+        }
+    
+        # Close connection and stream
+        $Stream.Close()
+        $Socket.Close()
+    }
+}
+function TEPolicySyslogSender{
+    Param($TEServer,$TEPass,$TEUser,$PolicyName,$NodeGroupName,$TestState,$Hours,$SyslogServer,$SyslogPort)
+    Get-TEAPILogin -sslIgnore $true -teserver $TEServer -tepass $tepass -teuser $TEUser
+    If($null -eq $TestState){
+        $Messages = Get-TEPolicyResultByNodeGroupSyslogMessageFormat -PolicyName $PolicyName -NodeGroupName $NodeGroupName
+    }
+    Else
+    {
+        if($null -ne $hours){
+            Get-TEPolicyResultByNodeGroupSyslogMessageFormatFilteredByStateAndHours -PolicyName $PolicyName -NodeGroupName $NodeGroupName -TestState $TestState -Hours $Hours
+        }
+        Else{
+            $Messages = Get-TEPolicyResultByNodeGroupSyslogMessageFormatFiltered -PolicyName $PolicyName -NodeGroupName $NodeGroupName -TestState $TestState
+        }
+    }
+    if($null -ne $Messages){
+        $Messages | foreach-object{
+            $DateStamp = [DateTime]::UtcNow | get-date -Format "yyyy-MM-ddTHH:mm:ssZ"
+            $MessageToSend = "<134>1 $DateStamp" + $_
+            Write-host $MessageToSend
+            Send-TCPMessage -Message $MessageToSend -EndPoint $SyslogServer -port $SyslogPort
+        }
+    }
+}
+# ----------------- Test Area ------------------------
+Get-TEAPILogin -sslIgnore $true -teserver "192.168.31.144" -tepass "Password_1" -teuser "api"
+# Get-TENodes -name "dc"
+# Get-TENodes -tag "Status:Monitoring Enabled" -name "dc"
+# Get-TENodesinNodeGroup -NodeGroupName "Microsoft Windows Server 2022"
+# Get-TENodesUnchecked -previoushours '24' -enabledOnly $true
+# Get-TENodeParentGroups -NodeName "dc"
+# Get-TEVersionLatest -RuleName "Network Interface Configuration" -NodeName "teconsole" -severity 10000
+# Get-TEVersionContent -id "-1y2p0ij32e8ce:-1y2p0ij30t9ao"
+# Get-TEVersionAttributes -id "-1y2p0ij32e8ce:-1y2p0ij30t9ao"
+# Get-TETask -name "Test Task"
+# Get-TETask -nodeid "-1y2p0ij32e8ay:-1y2p0ij32e78n"
+# Get-TETaskGroup -Name "My Check Tasks"
+# New-TECheckTaskManual -TaskName "My Test Task" -NodeGroup "Microsoft Windows Server 2019" -RuleGroup "OS Configuration Auditing" -enabled $true
+# Invoke-TETaskRun -TaskName "My Test Task"
+# Get-TETaskTargetNodes -TaskName "My Test Task"
+# Get-TETaskRunNodeResults -TaskName "My Test Task" -PrettyPrint $true
+# Get-TETaskRunResult -taskid "89"
+# Remove-TETask -Name "My Test Task (1)"
+#Remove-TETask -id "-1y2p0ij32e8at:-1y2p0ij2wozuq"
+# New-TELogEntrySimple -logtext "Test"
+# New-TERadiusLog -LogText "Hello again" -NodeName "dc"
+# New-TERuleGroup -RuleGroupName "Test"  # -RuleGroupParent "Chris Test Lab Rules"
+#Remove-TERuleGroup -RuleGroupName "Test"
+#Rename-TERule -RuleName "blah" -NewRuleName "blahblah"
+#Get-TERule -Name "blah"
+# Get-TEPolicies -Name "Group Policy Processing Examples"
+# Remove-TERuleLink -RuleGroupName "Demo Rules" -RuleName "blahblah"
+# New-TERuleLink -RuleName "blahblah" -DestinationGroup "Demo Rules"
+# Get-TERuleParentGroups -Name "blahblah"
+#Move-TERule -ItemToMove "blahblah" -DestinationGroup "Chris Test Lab Rules" -RemoveOtherLinks $true
+# $policytest = Get-TEPolicyTest -Type "Conte15"
+# Get-TEPolicyTestParentGroups -Name "Access Key 1 Last Used Greater Than 90 Days"
+# Get-TEPolicyTest -PolicyName "**Policy**"
+# Get-TEPolicyTestRemediationDetails -Name "Access Key 1 Last Used Greater Than 90 days"
+# Get-TEPolicyNodeScope -PolicyID "-1y2p0ij32e87t:-1y2p0ij31snk7" # -PolicyName "MS Windows Server 2019 DM - CIS v1.3.0 Level 1"
+# Get-TEPolicyTestResult -PolicyTestName "Relax Minimum Password Length Limits: Enabled"
+# $results =  Get-TEPolicyTestResult -PolicyName "MS Windows Server 2019 DM - CIS v1.3.0 Level 1"
+# Get-TEPolicyTestResult -PolicyTestName "GPResult XML Example"
+# Get-TEPolicyTestResult -NodeName "dc" -PolicyName "Group Policy Processing Examples"
+# Get-TEPolicyTestResult -State "PASSED"
+# Remove-TEPolicyTest -Name "Test"
+# Get-TEWaivers -name "Test"
+# New-TEWaiver -waiverDescription "Hello world" -waiveredNodeName "teconsole" -waiveredPolicy "MITRE ATT&CK v12 - Windows" -waiverName "Example Waiver" -waiveredPolicyTest "Service ImagePath: Does Not Contain TSCON" -waiverGrantedBy "Grant the Granter" -waiverResponsible "Ros the Responsible 1" 
+# New-TERuleExternal -RuleGroupName "Fortra Frontline Rule Group" -RuleName "Vulnerabilities" -RuleDescription "Vulnerabilities detected via Fortra's FrontLine scanning"
+# New-TERuleExternal -RuleGroupName "Fortra Frontline Rule Group" -RuleName "Threat Assessment Data" -RuleDescription "Vulnerabilities detected via Fortra's FrontLine scanning" 
+Get-TELogs -Level "INFO" -starttime "2023-03-01T17:06:47.000Z" -endtime "2023-03-01T17:06:50.000Z" -maxlogcount 1
+
+# Get-TEAPILogoff
