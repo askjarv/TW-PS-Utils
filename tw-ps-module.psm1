@@ -1354,6 +1354,26 @@ function New-TERuleExternalVersion{
         return $newElementVersion
     }
 }
+function New-TERuleCOCRScript {
+    Param([parameter(mandatory)]$RuleGroupName, [parameter(mandatory)]$RuleName, $RuleDescription, [parameter(mandatory)]$Severity, [parameter(mandatory)]$ElementName, [parameter(mandatory)]$Command, [parameter(mandatory)]$Script, $TrackingID)
+    <#
+    .SYNOPSIS
+    Creates a new Command Output Capture Rule with a script
+    .DESCRIPTION
+    Creates a new Command Output Capture Rule with a script
+    .EXAMPLE
+    New-TERuleCOCRScript -RuleGroupName "Test Group Name" -RuleDescription "Test description" -RuleName "My New COCR Rule" -Severity 1 -ElementName "My New Element" -Command "$(ScriptFile.sh)" -Script "ls -l"
+    Creates a new COCR rule called "My New COCR Rule" with the description "Test description" and adds it to the "Test Group Name" rule group with a severity of 1 and a command of "ls -l" and a script of "ScriptFile.sh"
+    .NOTES
+    #>
+    if ($true -eq (Get-TEAPILoginStatus)) {
+        $RuleGroupParent = Get-TERuleGroups -Name $RuleGroupName
+        $json = @{description = "$RuleDescription"; name = "$RuleName"; type = "Command Output Capture Rule"; trackingId = "$TrackingID"; severity = $Severity; command = $Command; script = $Script; elementName = $ElementName } | ConvertTo-Json
+        $newRule = Invoke-RestMethod -Uri ($Uri + 'rules') -Method Post -Body $json -ContentType 'Application/json' -Headers $headers -WebSession $ActiveSessionVariable
+        try { Move-TERule -ItemToMove $RuleName -DestinationGroup $RuleGroupName }catch { Write-Warning "Failed to move rule to final destination group - rule may have not been created or is in Unlinked Group" }
+        return $newRule
+    }
+}
 # -------------------- REST API ---------------------------
 # -------------------- Policies ---------------------------
 function Get-TEPolicies{
